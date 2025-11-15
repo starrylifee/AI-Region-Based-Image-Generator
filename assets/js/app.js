@@ -731,7 +731,13 @@
     async function autoBackupStudentWork(imageBase64) {
       if (!imageBase64) return;
       if (!authManager.currentUser || authManager.userRole !== 'student') return;
-      if (!authManager.classCode) return;
+      if (!authManager.classCode) {
+        await authManager.loadUserData();
+      }
+      if (!authManager.classCode) {
+        console.warn('자동 백업 중단: 반 정보(classCode)를 찾을 수 없습니다.');
+        return;
+      }
       try {
         await databaseManager.saveStudentWork(
           overallPromptEl.value.trim(),
