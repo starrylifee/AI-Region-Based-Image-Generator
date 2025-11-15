@@ -16,6 +16,7 @@ const primaryApp = firebase.apps.find(app => app.name === '[DEFAULT]') || fireba
 // Firebase 서비스 참조
 const auth = primaryApp.auth();
 const db = primaryApp.firestore();
+const storage = primaryApp.storage();
 
 // 학생 계정 생성을 위한 보조 앱 (교사 세션 유지용)
 let secondaryApp = firebase.apps.find(app => app.name === 'SecondaryApp');

@@ -153,10 +153,14 @@
         
         if (isTeacher) {
           dashboardBtn.classList.remove('hidden');
-          saveWorkBtn.classList.add('hidden');
+          if (saveWorkBtn) {
+            saveWorkBtn.classList.add('hidden');
+          }
           joinClassBtn.classList.add('hidden');
         } else if (isStudent) {
-          saveWorkBtn.classList.remove('hidden');
+          if (saveWorkBtn) {
+            saveWorkBtn.classList.add('hidden'); // 자동 저장이므로 학생 버튼 비노출
+          }
           if (!authManager.classCode) {
             joinClassBtn.classList.remove('hidden');
           } else {
@@ -165,7 +169,9 @@
         } else {
           // 역할 미지정: 버튼들을 숨김 처리
           dashboardBtn.classList.add('hidden');
-          saveWorkBtn.classList.add('hidden');
+          if (saveWorkBtn) {
+            saveWorkBtn.classList.add('hidden');
+          }
           joinClassBtn.classList.add('hidden');
         }
       } else {
@@ -653,10 +659,31 @@
       const color = regionColors[(nextRegionId-1)%regionColors.length];
       let newRegion;
       if(currentTool==='rectangle'){
-        newRegion={id:nextRegionId,type:'rectangle',x:Math.min(startX,endX),y:Math.min(startY,endY),w:Math.abs(endX-startX),h:Math.abs(endY-startY),color:color,prompt:'',imageBase64:null};
+        newRegion={
+          id:nextRegionId,
+          type:'rectangle',
+          role:'background',
+          x:Math.min(startX,endX),
+          y:Math.min(startY,endY),
+          w:Math.abs(endX-startX),
+          h:Math.abs(endY-startY),
+          color:color,
+          prompt:'',
+          imageBase64:null
+        };
       } else {
         const radius = Math.hypot(endX-startX,endY-startY);
-        newRegion={id:nextRegionId,type:'circle',cx:startX,cy:startY,radius:radius,color:color,prompt:'',imageBase64:null};
+        newRegion={
+          id:nextRegionId,
+          type:'circle',
+          role:'object',
+          cx:startX,
+          cy:startY,
+          radius:radius,
+          color:color,
+          prompt:'',
+          imageBase64:null
+        };
       }
       if((newRegion.type==='rectangle' && (newRegion.w<10||newRegion.h<10)) || (newRegion.type==='circle' && newRegion.radius<5)){
         drawAllRegions();
@@ -683,7 +710,9 @@
         if(region.type==='rectangle') ctx.strokeRect(region.x,region.y,region.w,region.h);
         else { ctx.beginPath(); ctx.arc(region.cx,region.cy,region.radius,0,2*Math.PI); ctx.stroke(); }
         ctx.fillStyle=region.color; ctx.font='14px Inter'; ctx.textAlign='left'; ctx.textBaseline='top';
-        const text=`ID: ${region.id}${region.prompt?`: ${region.prompt.substring(0,15)}...`:''}`;
+        const roleLabel = getRegionRole(region)==='background' ? '(배경)' : '(객체)';
+        const promptPreview = region.prompt ? `: ${region.prompt.substring(0,15)}...` : '';
+        const text=`ID: ${region.id} ${roleLabel}${promptPreview}`;
         const textX=(region.type==='rectangle')?region.x+5:region.cx-region.radius; const textY=(region.type==='rectangle')?region.y+5:region.cy-region.radius;
         ctx.fillText(text,textX,textY); ctx.setLineDash([]);
       });
@@ -700,9 +729,11 @@
         regionEl.className='region-item bg-gradient-to-br from-gray-700/80 to-gray-800/80 p-4 rounded-xl shadow-lg border border-gray-600/50'; 
         regionEl.style.borderLeftColor=region.color; 
         regionEl.style.borderLeftWidth='4px';
+        const roleLabel = getRegionRole(region)==='background' ? '배경' : '객체';
+        const typeLabel = region.type === 'rectangle' ? 'Rectangle' : 'Circle';
         regionEl.innerHTML=`
           <div class="flex justify-between items-center mb-3">
-            <h3 class="text-lg font-semibold" style="color:${region.color}">Region ${region.id} (${region.type})</h3>
+            <h3 class="text-lg font-semibold" style="color:${region.color}">Region ${region.id} (${typeLabel} · ${roleLabel})</h3>
             <button class="delete-region-btn text-red-400 hover:text-red-300 font-bold transition-colors duration-200 px-2 py-1 rounded hover:bg-red-500/20" data-id="${region.id}">
               <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -739,12 +770,16 @@
         return;
       }
       try {
-        await databaseManager.saveStudentWork(
+        const result = await databaseManager.saveStudentWork(
           overallPromptEl.value.trim(),
           regions,
           imageBase64
         );
-        console.info('학생 작업이 자동으로 저장되었습니다.');
+        if (result?.success) {
+          console.info('학생 작업이 자동으로 저장되었습니다.');
+        } else {
+          console.warn('자동 백업 실패:', result?.error || '알 수 없는 오류');
+        }
       } catch (error) {
         console.error('자동 백업 실패:', error);
       }
@@ -802,68 +837,103 @@
       // 1. 영역 메타데이터 계산 (위치, 범위, 면적 비율)
       const regionDetails = regions.map((region) => {
         const locationKey = getRegionLocation(region, canvas.width, canvas.height);
+        const bounds = getRegionBounds(region, canvas.width, canvas.height);
+        const coverage = getRegionCoverage(region, canvas.width, canvas.height);
+        const role = getRegionRole(region);
         return {
           data: region,
+          role,
+          parentBackground: null,
           locationKey,
           locationText: translateLocation(locationKey),
-          bounds: getRegionBounds(region, canvas.width, canvas.height),
-          coverage: getRegionCoverage(region, canvas.width, canvas.height)
+          bounds,
+          coverage
         };
       });
       
-      // 2. 자연스러운 이미지 설명 프롬프트 구성
-      const regionInstructions = [];
-      
-      regionDetails.forEach(({ data, locationText, bounds, coverage }) => {
-        const coverageText = `${clampPercentValue(coverage)}%`;
-        const boundsText = `가로 ${bounds.left}%~${bounds.right}%, 세로 ${bounds.top}%~${bounds.bottom}%`;
-        let instruction = `영역 ${data.id} (${locationText}, ${boundsText}, 약 ${coverageText}) - `;
-        
-        if (data.prompt) {
-          instruction += `${data.prompt} 장면을 표현하세요.`;
-        } else if (data.imageBase64) {
-          instruction += `참조 이미지의 분위기와 구도를 그대로 반영하세요.`;
-        } else {
-          instruction += `배경과 자연스럽게 연결되도록 처리하세요.`;
-        }
-        
-        if (data.imageBase64 && coverage > 0.4) {
-          instruction += ' 이 영역은 전체 배경의 기준이 됩니다.';
-        }
-        
-        regionInstructions.push(instruction);
+      const backgroundDetails = regionDetails.filter((detail) => detail.role === 'background');
+      const objectDetails = regionDetails.filter((detail) => detail.role === 'object');
+      objectDetails.forEach((detail) => {
+        detail.parentBackground = findContainingBackground(detail, backgroundDetails);
       });
       
-      let finalPrompt = '';
-      if (overallPrompt) {
-        finalPrompt = overallPrompt.trim();
+      // 2. 배경 및 객체별 프롬프트 구성
+      const backgroundInstructions = backgroundDetails.map(({ data, locationText, bounds, coverage }) => {
+        const coverageText = `${clampPercentValue(coverage)}%`;
+        const boundsText = formatBoundsText(bounds);
+        let instruction = `배경 영역 ${data.id} (${locationText}, ${boundsText})이 화면의 약 ${coverageText}를 차지하도록 `;
+        if (data.prompt) {
+          instruction += `"${data.prompt}" 분위기로 채우고 `;
+        } else if (data.imageBase64) {
+          instruction += '참조 이미지와 동일한 톤·구도로 채우고 ';
+        } else {
+          instruction += '조화로운 색과 질감으로 채우고 ';
+        }
+        instruction += '다른 객체가 자연스럽게 겹칠 수 있는 안정적인 레이어를 제공합니다.';
+        return instruction;
+      });
+      
+      const objectInstructions = objectDetails.map((detail) => {
+        const { data, locationText, bounds, coverage, parentBackground } = detail;
+        const coverageText = `${clampPercentValue(coverage)}%`;
+        const boundsText = formatBoundsText(bounds);
+        const parentText = parentBackground
+          ? `배경 ${parentBackground.data.id} (${parentBackground.locationText}) 내부`
+          : '배경 위';
+        let instruction = `${parentText} ${locationText} 위치에 객체 ${data.id}를 배치하세요 (약 ${coverageText}, ${boundsText}). `;
+        if (data.prompt) {
+          instruction += `"${data.prompt}"을 표현하되 `;
+        } else if (data.imageBase64) {
+          instruction += '참조 이미지의 형태와 재질을 유지하되 ';
+        } else {
+          instruction += '배경과 대비되는 주제를 추가하되 ';
+        }
+        instruction += '조명과 원근을 배경과 일치시켜 하나의 장면으로 보이게 합니다.';
+        return instruction;
+      });
+      
+      let finalPrompt = overallPrompt ? overallPrompt.trim() : '';
+      const instructionSections = [];
+      
+      if (backgroundInstructions.length || objectInstructions.length) {
+        instructionSections.push('레이어 규칙: 모든 직사각형(배경)은 먼저 렌더링되고, 모든 동그라미(객체)는 해당 배경 위에 놓입니다.');
+      }
+      if (backgroundInstructions.length) {
+        instructionSections.push('[배경 지시]\n' + backgroundInstructions.join('\n'));
+      }
+      if (objectInstructions.length) {
+        instructionSections.push('[객체 지시]\n' + objectInstructions.join('\n'));
       }
       
-      if (regionInstructions.length > 0) {
+      if (instructionSections.length) {
         if (finalPrompt) finalPrompt += '\n\n';
-        finalPrompt += '캔버스를 다음 지시에 맞춰 구성하세요:\n' + regionInstructions.join('\n');
+        finalPrompt += instructionSections.join('\n\n');
       }
       
       if (!finalPrompt) {
-        finalPrompt = 'Create a cohesive image based on the provided region directives.';
+        finalPrompt = '직사각형 배경 위에 동그라미 객체를 명시된 위치와 비율로 배치하세요.';
       }
       
       finalPrompt += '\n\n각 영역은 자연스럽게 연결하고, 새로운 텍스트 오버레이는 추가하지 마세요.';
       
-      // 3. 참조 이미지 추가 (프롬프트가 없어도 참조 이미지가 있으면 추가)
-      regionDetails.forEach(({ data, locationText, bounds, coverage }) => {
+      // 3. 참조 이미지 추가 (역할에 맞춘 설명과 함께)
+      regionDetails.forEach((detail) => {
+        const { data, locationText, bounds, coverage, role, parentBackground } = detail;
         if (data.imageBase64) {
           const coverageText = `${clampPercentValue(coverage)}%`;
-          const boundsText = `가로 ${bounds.left}%~${bounds.right}%, 세로 ${bounds.top}%~${bounds.bottom}%`;
+          const boundsText = formatBoundsText(bounds);
+          const roleLabel = role === 'background' ? '배경' : '객체';
           
-          let referenceInstruction = `영역 ${data.id} (${locationText}, ${boundsText}, 약 ${coverageText})에 대해 이 참조 이미지를 사용하세요.`;
+          let referenceInstruction = `${roleLabel} 영역 ${data.id} (${locationText}, ${boundsText}, 약 ${coverageText})에 대한 참조 이미지입니다.`;
           if (data.prompt) {
             referenceInstruction += ` "${data.prompt}" 표현 시 이 이미지를 반영하세요.`;
           } else {
             referenceInstruction += ' 참조 이미지의 분위기와 구도를 그대로 살려주세요.';
           }
-          if (coverage > 0.4) {
-            referenceInstruction += ' 이 이미지는 전체 배경의 기준입니다.';
+          if (role === 'background') {
+            referenceInstruction += ' 이 이미지는 해당 배경 전체의 기준 톤과 질감을 결정합니다.';
+          } else if (parentBackground) {
+            referenceInstruction += ` 배경 ${parentBackground.data.id}와 자연스럽게 어우러지도록 조명과 색을 맞추세요.`;
           }
           referenceInstruction += ' 텍스트는 넣지 마세요.';
           
@@ -974,6 +1044,30 @@
         area = Math.PI * region.radius * region.radius;
       }
       return Math.max(0, Math.min(1, area / totalArea));
+    }
+
+    function getRegionRole(region){
+      const storedRole = (region.role || '').toLowerCase();
+      if(storedRole === 'background' || storedRole === 'object'){
+        return storedRole;
+      }
+      return region.type === 'rectangle' ? 'background' : 'object';
+    }
+
+    function findContainingBackground(detail, backgroundDetails){
+      return backgroundDetails.find((bgDetail) => {
+        if (bgDetail === detail) return false;
+        return (
+          detail.bounds.left >= bgDetail.bounds.left &&
+          detail.bounds.right <= bgDetail.bounds.right &&
+          detail.bounds.top >= bgDetail.bounds.top &&
+          detail.bounds.bottom <= bgDetail.bounds.bottom
+        );
+      }) || null;
+    }
+
+    function formatBoundsText(bounds){
+      return `가로 ${bounds.left}%~${bounds.right}%, 세로 ${bounds.top}%~${bounds.bottom}%`;
     }
 
     // 작업 저장 버튼 클릭

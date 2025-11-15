@@ -13,6 +13,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
     <header class="bg-gradient-to-r from-gray-800 via-gray-850 to-gray-800 shadow-xl p-4 border-b border-gray-700">
         <div class="flex justify-between items-center max-w-7xl mx-auto">
@@ -350,6 +351,9 @@
 
             worksList.innerHTML = works.map(work => {
                 const date = work.createdAt ? new Date(work.createdAt.toDate()).toLocaleString('ko-KR') : '날짜 없음';
+                const previewSrc = work.generatedImageUrl
+                    ? work.generatedImageUrl
+                    : (work.generatedImageBase64 ? `data:image/png;base64,${work.generatedImageBase64}` : null);
                 return `
                     <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600 hover:border-blue-500 transition-all duration-200 cursor-pointer" onclick="showWorkDetail('${work.id}')">
                         <div class="flex justify-between items-start">
@@ -360,8 +364,8 @@
                                 <p class="text-gray-400 text-sm mt-2">${work.overallPrompt || '프롬프트 없음'}</p>
                                 <p class="text-gray-500 text-xs mt-2">${date}</p>
                             </div>
-                            ${work.generatedImageBase64 ? 
-                                `<img src="data:image/png;base64,${work.generatedImageBase64}" class="w-24 h-24 object-cover rounded-lg border border-gray-600">` : 
+                            ${previewSrc ? 
+                                `<img src="${previewSrc}" class="w-24 h-24 object-cover rounded-lg border border-gray-600">` : 
                                 '<div class="w-24 h-24 bg-gray-600 rounded-lg flex items-center justify-center text-gray-400 text-xs">이미지 없음</div>'
                             }
                         </div>
@@ -377,6 +381,9 @@
 
             const modalContent = document.getElementById('work-modal-content');
             const date = work.createdAt ? new Date(work.createdAt.toDate()).toLocaleString('ko-KR') : '날짜 없음';
+            const previewSrc = work.generatedImageUrl
+                ? work.generatedImageUrl
+                : (work.generatedImageBase64 ? `data:image/png;base64,${work.generatedImageBase64}` : null);
             
             modalContent.innerHTML = `
                 <div class="space-y-4">
@@ -404,10 +411,10 @@
                             </div>
                         </div>
                     ` : ''}
-                    ${work.generatedImageBase64 ? `
+                    ${previewSrc ? `
                         <div>
                             <h3 class="text-xl font-semibold text-white mb-2">생성된 이미지</h3>
-                            <img src="data:image/png;base64,${work.generatedImageBase64}" class="max-w-full rounded-lg border border-gray-600">
+                            <img src="${previewSrc}" class="max-w-full rounded-lg border border-gray-600">
                         </div>
                     ` : ''}
                 </div>

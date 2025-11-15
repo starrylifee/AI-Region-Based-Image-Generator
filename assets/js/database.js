@@ -12,6 +12,11 @@ class DatabaseManager {
     }
 
     try {
+      let uploadResult = null;
+      if (generatedImageBase64) {
+        uploadResult = await this.uploadGeneratedImage(generatedImageBase64);
+      }
+
       const workData = {
         studentId: authManager.currentUser.uid,
         studentName: authManager.currentUser.displayName || '익명',
@@ -34,7 +39,9 @@ class DatabaseManager {
           radius: typeof r.radius === 'number' ? r.radius : null,
           color: r.color || null
         })),
-        generatedImageBase64: generatedImageBase64,
+        generatedImageBase64: null,
+        generatedImageUrl: uploadResult?.downloadURL || null,
+        generatedImageStoragePath: uploadResult?.storagePath || null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
 
@@ -112,6 +119,35 @@ class DatabaseManager {
       console.error('학생 목록 가져오기 오류:', error);
       return [];
     }
+  }
+
+  async uploadGeneratedImage(base64Data) {
+    if (!storage) {
+      throw new Error('Firebase Storage가 초기화되지 않았습니다.');
+    }
+    const user = authManager.currentUser;
+    if (!user) {
+      throw new Error('로그인이 필요합니다.');
+    }
+    const classCode = authManager.classCode || 'unassigned';
+    const timestamp = Date.now();
+    const path = `studentWorks/${classCode}/${user.uid}/${timestamp}.png`;
+    const dataUrl = base64Data.startsWith('data:')
+      ? base64Data
+      : `data:image/png;base64,${base64Data}`;
+    const storageRef = storage.ref().child(path);
+    const snapshot = await storageRef.putString(dataUrl, 'data_url', {
+      contentType: 'image/png',
+      customMetadata: {
+        studentId: user.uid,
+        classCode: authManager.classCode || ''
+      }
+    });
+    const downloadURL = await snapshot.ref.getDownloadURL();
+    return {
+      downloadURL,
+      storagePath: path
+    };
   }
 }
 
