@@ -1,0 +1,118 @@
+/* Basic project styles and tiny overrides to complement Tailwind */
+:root{
+  --bg:#0f1724;
+  --muted:#94a3b8;
+  --accent:#60a5fa;
+}
+html,body{
+  height:100%;
+}
+body{
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: var(--bg);
+}
+canvas{cursor:crosshair; display:block;}
+
+/* Loader */
+.loader{border:4px solid rgba(255,255,255,0.08);border-top:4px solid var(--accent);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+
+/* Output image styling */
+#output-image{max-width:100%;max-height:420px;border-radius:8px;box-shadow:0 6px 18px rgba(2,6,23,0.6);}
+
+/* Modal Styles */
+.modal{
+  animation: fadeIn 0.2s ease-out;
+}
+.modal.hidden{
+  display: none;
+}
+.modal-content{
+  animation: slideUp 0.3s ease-out;
+}
+.modal.show .modal-content{
+  transform: scale(1);
+  opacity: 1;
+}
+.modal.hidden .modal-content{
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+@keyframes fadeIn{
+  from{opacity:0}
+  to{opacity:1}
+}
+@keyframes slideUp{
+  from{
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+  }
+  to{
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Tab Content Animation */
+.tab-content{
+  animation: fadeInTab 0.2s ease-in;
+}
+.tab-content.hidden{
+  display: none;
+}
+
+@keyframes fadeInTab{
+  from{
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to{
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Region Item Enhanced Styling */
+.region-item{
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.8), rgba(17, 24, 39, 0.8));
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  border-left: 4px solid;
+}
+.region-item:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Tool Button Active State */
+.tool-btn.active{
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* Small responsive tweaks */
+@media (max-width: 640px){
+  #region-list .preview-container img{width:56px;height:56px}
+  .modal-content{
+    margin: 1rem;
+    max-width: calc(100% - 2rem);
+  }
+}
+
+/* Improve focus outlines for accessibility */
+button:focus, input:focus, textarea:focus{outline:3px solid rgba(96,165,250,0.16);outline-offset:2px}
+
+/* Make the canvas container preserve aspect and center */
+.canvas-wrapper{display:flex;align-items:center;justify-content:center}
+
+/* Small helper */
+.hidden{display:none}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
