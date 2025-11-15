@@ -29,21 +29,36 @@ class AuthManager {
     this.currentUser = user;
   
     try {
-      const userDoc = await db.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        const normalizedRole = this.normalizeRoleValue(userData.role);
-        this.userRole = normalizedRole;
-        this.classCode = userData.classCode || null;
-        this.studentNumber = userData.studentNumber || null;
-        this.className = userData.className || null;
+      const userRef = db.collection('users').doc(user.uid);
+      const userDoc = await userRef.get();
+      let userData;
 
-        // Firestore에 저장된 role 값이 정규화된 값과 다르면 업데이트
-        if (normalizedRole && normalizedRole !== userData.role) {
-          await db.collection('users').doc(user.uid).update({
-            role: normalizedRole
-          });
-        }
+      if (userDoc.exists) {
+        userData = userDoc.data();
+      } else {
+        const email = (user.email || '').toLowerCase();
+        const isAutoStudent = email.includes('.students.local');
+        const fallbackRole = isAutoStudent ? 'student' : 'teacher';
+        userData = {
+          email: user.email || '',
+          name: user.displayName || user.email || '사용자',
+          role: fallbackRole,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await userRef.set(userData, { merge: true });
+      }
+
+      const normalizedRole = this.normalizeRoleValue(userData.role);
+      this.userRole = normalizedRole;
+      this.classCode = userData.classCode || null;
+      this.studentNumber = userData.studentNumber || null;
+      this.className = userData.className || null;
+
+      // Firestore에 저장된 role 값이 정규화된 값과 다르면 업데이트
+      if (normalizedRole && normalizedRole !== userData.role) {
+        await userRef.update({
+          role: normalizedRole
+        });
       }
     } catch (error) {
       console.error('사용자 데이터 로드 오류:', error);
@@ -300,7 +315,12 @@ class AuthManager {
   }
 
   generateStudentPassword() {
-    return Math.floor(1000 + Math.random() * 9000).toString();
+    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let password = '';
+    for (let i = 0; i < 8; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
   }
 
   normalizeStudentNumber(value) {

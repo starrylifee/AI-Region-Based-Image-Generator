@@ -728,6 +728,22 @@
       }
     }
 
+    async function autoBackupStudentWork(imageBase64) {
+      if (!imageBase64) return;
+      if (!authManager.currentUser || authManager.userRole !== 'student') return;
+      if (!authManager.classCode) return;
+      try {
+        await databaseManager.saveStudentWork(
+          overallPromptEl.value.trim(),
+          regions,
+          imageBase64
+        );
+        console.info('학생 작업이 자동으로 저장되었습니다.');
+      } catch (error) {
+        console.error('자동 백업 실패:', error);
+      }
+    }
+
     clearBtn.addEventListener('click',()=>{ regions=[]; nextRegionId=1; overallPromptEl.value=''; ctx.fillStyle = '#000000'; ctx.fillRect(0,0,canvas.width,canvas.height); updateRegionList(); outputImage.classList.add('hidden'); outputPlaceholder.classList.remove('hidden'); errorMessage.classList.add('hidden'); });
 
     generateBtn.addEventListener('click', async ()=>{
@@ -882,7 +898,11 @@
           outputPlaceholder.classList.add('hidden');
           errorMessage.classList.add('hidden');
           currentGeneratedImageBase64 = base64Data; // 생성된 이미지 저장
-          setGenerationModalState('success');
+          const isStudentUser = authManager.currentUser && authManager.userRole === 'student';
+          setGenerationModalState('success', isStudentUser ? '이미지가 생성되었고 자동으로 교사에게 공유되었습니다.' : undefined);
+          if (isStudentUser) {
+            autoBackupStudentWork(base64Data);
+          }
         }
         else { const textResponse = result?.candidates?.[0]?.content?.parts?.find(p=>p.text)?.text; throw new Error(textResponse || 'Failed to generate image. No image data received.'); }
       }catch(err){ 

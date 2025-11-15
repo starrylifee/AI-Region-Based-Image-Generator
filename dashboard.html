@@ -17,7 +17,10 @@
     <header class="bg-gradient-to-r from-gray-800 via-gray-850 to-gray-800 shadow-xl p-4 border-b border-gray-700">
         <div class="flex justify-between items-center max-w-7xl mx-auto">
             <h1 class="text-2xl font-bold text-white drop-shadow-lg">교사 대시보드</h1>
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-3">
+                <button id="back-to-app-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all duration-200">
+                    작업 화면으로
+                </button>
                 <span id="user-name" class="text-gray-300"></span>
                 <button id="logout-btn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all duration-200">
                     로그아웃
@@ -59,7 +62,10 @@
             <div class="bg-gradient-to-br from-gray-800 to-gray-850 rounded-xl p-6 shadow-lg border border-gray-700/50 mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-2xl font-semibold text-white">학생 계정 관리</h2>
-                    <p class="text-xs text-gray-400">반 이름 / 학생 번호 / 비밀번호는 자동 생성됩니다.</p>
+                    <p class="text-xs text-gray-400 text-right leading-relaxed">
+                        반 이름 · 학생 번호 · 비밀번호는 자동으로 순차 발급됩니다.<br>
+                        필요한 학생 수를 입력하면 번호가 이어서 생성됩니다.
+                    </p>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
                     <div class="lg:col-span-1">
@@ -69,16 +75,17 @@
                         </select>
                     </div>
                     <div class="lg:col-span-1">
-                        <label class="block text-sm font-medium text-gray-300 mb-2">학생 이름 (선택)</label>
-                        <input type="text" id="student-name-input" class="w-full p-3 bg-gray-700/80 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" placeholder="예: 김학생">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">학생 수</label>
+                        <input type="number" id="student-count-input" class="w-full p-3 bg-gray-700/80 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" placeholder="예: 5" value="1" min="1" max="50">
+                        <p class="text-xs text-gray-500 mt-2">한 번에 최대 30명까지 생성할 수 있습니다.</p>
                     </div>
                     <div class="lg:col-span-1 flex items-end">
-                        <button id="create-student-btn" class="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                        <button id="create-student-btn" class="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold py-3 px-6 rounded-lg transition-all	duration-200	shadow-lg hover:shadow-xl transform hover:scale-105">
                             학생 계정 생성
                         </button>
                     </div>
                 </div>
-                <div id="student-creation-result" class="hidden mb-4 bg-green-900/40 border border-green-700 rounded-lg p-4 text-green-200 text-sm"></div>
+                <div id="student-creation-result" class="hidden mb-4 bg-green-900/40 border border-green-700 rounded-lg p-4 text-green-100/90 text-sm"></div>
                 <div id="students-list" class="space-y-3">
                     <p class="text-gray-400 text-sm">반을 선택하면 학생 목록과 비밀번호가 표시됩니다.</p>
                 </div>
@@ -211,7 +218,7 @@
         // 학생 생성
         document.getElementById('create-student-btn').addEventListener('click', async () => {
             const classCode = document.getElementById('student-class-select').value;
-            const studentNameInput = document.getElementById('student-name-input');
+            const studentCountInput = document.getElementById('student-count-input');
             const resultBox = document.getElementById('student-creation-result');
 
             if (!classCode) {
@@ -219,28 +226,58 @@
                 return;
             }
 
-            const studentName = studentNameInput.value.trim();
-            document.getElementById('create-student-btn').disabled = true;
+            const count = parseInt(studentCountInput.value, 10);
+            if (isNaN(count) || count < 1) {
+                alert('1명 이상 생성할 학생 수를 입력하세요.');
+                return;
+            }
+            if (count > 30) {
+                alert('한 번에 최대 30명까지만 생성할 수 있습니다.');
+                return;
+            }
+
+            const createBtn = document.getElementById('create-student-btn');
+            createBtn.disabled = true;
+            createBtn.textContent = '생성 중...';
             resultBox.classList.add('hidden');
             resultBox.textContent = '';
 
-            const result = await authManager.createStudentAccount(classCode, studentName);
-            document.getElementById('create-student-btn').disabled = false;
+            const successCreds = [];
+            const errors = [];
 
-            if (result.success) {
-                const cred = result.credentials;
+            for (let i = 0; i < count; i++) {
+                const result = await authManager.createStudentAccount(classCode, '');
+                if (result.success) {
+                    successCreds.push(result.credentials);
+                } else {
+                    errors.push(result.error || '알 수 없는 오류');
+                }
+            }
+
+            createBtn.disabled = false;
+            createBtn.textContent = '학생 계정 생성';
+
+            if (successCreds.length) {
+                const listHtml = successCreds.map((cred, idx) => `
+                    <li class="border border-green-800/60 rounded-lg p-3 bg-green-900/30">
+                        <p class="text-green-100 font-semibold">#${idx + 1} - 학생 번호 ${cred.studentNumber}</p>
+                        <p class="text-green-100/90 text-sm">이메일: <span class="font-mono">${cred.email}</span></p>
+                        <p class="text-green-100/90 text-sm">비밀번호: <span class="font-mono">${cred.password}</span></p>
+                    </li>
+                `).join('');
+
                 resultBox.innerHTML = `
-                    <p class="font-semibold mb-1">새 학생 계정이 생성되었습니다.</p>
-                    <p>반 이름: <span class="font-mono">${cred.className}</span></p>
-                    <p>학생 번호: <span class="font-mono">${cred.studentNumber}</span></p>
-                    <p>비밀번호: <span class="font-mono">${cred.password}</span></p>
-                    <p class="mt-2 text-xs text-green-100/80">※ 학생에게 반 이름 / 학생 번호 / 비밀번호를 전달하세요.</p>
+                    <p class="font-semibold mb-2">${successCreds.length}명의 학생 계정이 생성되었습니다.</p>
+                    <ul class="space-y-2">${listHtml}</ul>
+                    <p class="mt-3 text-xs text-green-100/70">※ 학생에게 반 이름 / 학생 번호 / 비밀번호를 전달하세요.</p>
                 `;
                 resultBox.classList.remove('hidden');
-                studentNameInput.value = '';
+                studentCountInput.value = '1';
                 await loadStudents(classCode);
-            } else {
-                alert('학생 생성 실패: ' + (result.error || '알 수 없는 오류'));
+            }
+
+            if (errors.length) {
+                alert('일부 학생 생성 실패: ' + errors.join(', '));
             }
         });
 
@@ -394,6 +431,10 @@
         document.getElementById('logout-btn').addEventListener('click', async () => {
             await authManager.signOut();
             window.location.href = 'login.html';
+        });
+
+        document.getElementById('back-to-app-btn').addEventListener('click', () => {
+            window.location.href = 'index.html';
         });
     </script>
 </body>

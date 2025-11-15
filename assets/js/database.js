@@ -24,8 +24,15 @@ class DatabaseManager {
           id: r.id,
           type: r.type,
           prompt: r.prompt,
-          // 이미지는 base64로 저장 (큰 데이터이므로 나중에 Storage로 옮길 수 있음)
-          imageBase64: r.imageBase64 || null
+          imageBase64: r.imageBase64 || null,
+          x: typeof r.x === 'number' ? r.x : null,
+          y: typeof r.y === 'number' ? r.y : null,
+          width: typeof r.w === 'number' ? r.w : null,
+          height: typeof r.h === 'number' ? r.h : null,
+          cx: typeof r.cx === 'number' ? r.cx : null,
+          cy: typeof r.cy === 'number' ? r.cy : null,
+          radius: typeof r.radius === 'number' ? r.radius : null,
+          color: r.color || null
         })),
         generatedImageBase64: generatedImageBase64,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
