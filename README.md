@@ -51,6 +51,7 @@ AI 기반 이미지 생성 애플리케이션으로, Firebase를 통한 교사/�
 
 ### 2. API 키 설정
 
+#### 로컬 테스트
 `config.js` 파일을 열고 Gemini API 키를 설정하세요:
 
 ```javascript
@@ -59,6 +60,11 @@ window.__ENV__ = {
   API_URL: "" // 기본값 사용 시 빈 문자열
 };
 ```
+
+#### Vercel 배포
+1. Vercel 프로젝트 설정 → Environment Variables에 `GEMINI_API_KEY`(필수)와 `GEMINI_API_URL`(선택)을 추가합니다.
+2. 배포된 클라이언트는 `/api/env` 서버리스 함수로부터 값을 받아 `window.__ENV__`에 주입하므로, 별도의 하드코딩이 필요 없습니다.
+3. 톱니 모양 설정창을 통해 입력한 값은 여전히 로컬 스토리지에 저장되어 우선순위가 낮으며, Vercel 환경변수가 존재하면 이를 자동으로 덮어씁니다.
 
 ### 3. 로컬 서버 실행
 

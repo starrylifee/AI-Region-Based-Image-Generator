@@ -85,6 +85,18 @@
     const regionColors = ['#34D399','#F87171','#60A5FA','#FBBF24','#A78BFA','#EC4899'];
     let currentGeneratedImageBase64 = null; // 생성된 이미지 base64 저장
 
+    async function waitForRemoteEnv() {
+      const promise = window.__ENV_PROMISE;
+      if (!promise || typeof promise.then !== 'function') {
+        return;
+      }
+      try {
+        await promise;
+      } catch (err) {
+        console.warn('원격 환경 변수 로드 실패:', err);
+      }
+    }
+
     // 사용자 역할에 따른 UI 업데이트
     function updateUIForUser() {
       const isTrialMode = localStorage.getItem('trial_mode') === 'true';
@@ -378,9 +390,10 @@
     tabRegionsBtn.addEventListener('click', () => switchTab('regions'));
 
     // Modal functionality
-    function openModal() {
+    async function openModal() {
       settingsModal.classList.remove('hidden');
       settingsModal.classList.add('show');
+      await waitForRemoteEnv();
       // Load current settings from window.__ENV__ or localStorage
       let apiKey = window.__ENV__?.API_KEY || '';
       let apiUrl = window.__ENV__?.API_URL || '';
@@ -428,6 +441,7 @@
       
       window.__ENV__.API_KEY = apiKey;
       window.__ENV__.API_URL = apiUrl || '';
+      window.__ENV_PROMISE = Promise.resolve(window.__ENV__);
       
       // Save to localStorage for persistence
       try {
@@ -672,6 +686,7 @@
       const originalText = generateBtnText.innerHTML;
       generateBtnText.innerHTML='<svg class="w-5 h-5 mr-2 animate-spin inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>Generating...';
 
+      await waitForRemoteEnv();
       // Read config from window.__ENV__ (config.js) or localStorage
       let apiKey = window.__ENV__?.API_KEY || '';
       if (!apiKey) {
