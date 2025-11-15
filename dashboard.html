@@ -131,6 +131,7 @@
                 return;
             }
 
+            authManager.currentUser = user;
             await authManager.loadUserData();
             
             if (authManager.userRole !== 'teacher') {

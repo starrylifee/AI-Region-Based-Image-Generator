@@ -24,10 +24,12 @@ class AuthManager {
   }
 
   async loadUserData() {
-    if (!this.currentUser) return;
-    
+    const user = this.currentUser || auth.currentUser;
+    if (!user) return;
+    this.currentUser = user;
+  
     try {
-      const userDoc = await db.collection('users').doc(this.currentUser.uid).get();
+      const userDoc = await db.collection('users').doc(user.uid).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
         const normalizedRole = this.normalizeRoleValue(userData.role);
@@ -38,7 +40,7 @@ class AuthManager {
 
         // Firestore에 저장된 role 값이 정규화된 값과 다르면 업데이트
         if (normalizedRole && normalizedRole !== userData.role) {
-          await db.collection('users').doc(this.currentUser.uid).update({
+          await db.collection('users').doc(user.uid).update({
             role: normalizedRole
           });
         }
@@ -86,6 +88,8 @@ class AuthManager {
   async signIn(email, password) {
     try {
       const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      await this.loadUserData();
+      this.currentUser = userCredential.user;
       await this.loadUserData();
       return { success: true, user: userCredential.user };
     } catch (error) {

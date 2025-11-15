@@ -10,6 +10,7 @@
         return;
       }
       if (user) {
+        authManager.currentUser = user;
         await authManager.loadUserData();
       }
       updateUIForUser();
@@ -84,6 +85,10 @@
 
     const regionColors = ['#34D399','#F87171','#60A5FA','#FBBF24','#A78BFA','#EC4899'];
     let currentGeneratedImageBase64 = null; // 생성된 이미지 base64 저장
+
+    if (canvas) {
+      canvas.style.touchAction = 'none';
+    }
 
     async function waitForRemoteEnv() {
       const promise = window.__ENV_PROMISE;
@@ -577,34 +582,74 @@
     aspect16_9Btn.addEventListener('click', () => selectAspectRatio('16:9'));
     aspect9_16Btn.addEventListener('click', () => selectAspectRatio('9:16'));
 
-    canvas.addEventListener('mousedown',(e)=>{
-      isDrawing=true;
+    function getCanvasCoordinates(evt) {
       const rect = canvas.getBoundingClientRect();
-      startX = e.clientX - rect.left;
-      startY = e.clientY - rect.top;
-    });
+      const clientX = typeof evt?.clientX === 'number'
+        ? evt.clientX
+        : (evt?.touches?.[0]?.clientX ?? evt?.changedTouches?.[0]?.clientX ?? rect.left);
+      const clientY = typeof evt?.clientY === 'number'
+        ? evt.clientY
+        : (evt?.touches?.[0]?.clientY ?? evt?.changedTouches?.[0]?.clientY ?? rect.top);
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
 
-    canvas.addEventListener('mousemove',(e)=>{
-      if(!isDrawing) return;
-      const rect = canvas.getBoundingClientRect();
-      const currentX = e.clientX - rect.left;
-      const currentY = e.clientY - rect.top;
-      // 검정 배경으로 채우기
+    function beginDrawing(evt) {
+      if (!canvas || !ctx) return;
+      if (evt.button !== undefined && evt.button !== 0) return;
+      evt.preventDefault();
+      const { x, y } = getCanvasCoordinates(evt);
+      isDrawing = true;
+      startX = x;
+      startY = y;
+      if (typeof canvas.setPointerCapture === 'function' && evt.pointerId !== undefined) {
+        try {
+          canvas.setPointerCapture(evt.pointerId);
+        } catch (err) {
+          console.warn('setPointerCapture 실패:', err);
+        }
+      }
+    }
+
+    function drawPreview(evt) {
+      if (!isDrawing || !canvas || !ctx) return;
+      evt.preventDefault();
+      const { x: currentX, y: currentY } = getCanvasCoordinates(evt);
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawAllRegions();
       ctx.strokeStyle = regionColors[(nextRegionId-1)%regionColors.length];
       ctx.lineWidth = 2;
       ctx.setLineDash([5,5]);
-      if(currentTool==='rectangle') ctx.strokeRect(startX,startY,currentX-startX,currentY-startY);
-      else { const r=Math.hypot(currentX-startX,currentY-startY); ctx.beginPath(); ctx.arc(startX,startY,r,0,2*Math.PI); ctx.stroke(); }
+      if(currentTool==='rectangle') {
+        ctx.strokeRect(startX,startY,currentX-startX,currentY-startY);
+      } else {
+        const r=Math.hypot(currentX-startX,currentY-startY);
+        ctx.beginPath();
+        ctx.arc(startX,startY,r,0,2*Math.PI);
+        ctx.stroke();
+      }
       ctx.setLineDash([]);
-    });
+    }
 
-    canvas.addEventListener('mouseup',(e)=>{
-      if(!isDrawing) return; isDrawing=false;
-      const rect = canvas.getBoundingClientRect();
-      const endX = e.clientX - rect.left; const endY = e.clientY - rect.top;
+    function finishDrawing(evt, cancelOnly = false) {
+      if (!isDrawing || !canvas) return;
+      evt?.preventDefault();
+      if (evt?.pointerId !== undefined && typeof canvas.releasePointerCapture === 'function') {
+        try {
+          canvas.releasePointerCapture(evt.pointerId);
+        } catch (err) {
+          console.warn('releasePointerCapture 실패:', err);
+        }
+      }
+      isDrawing=false;
+      if (cancelOnly) {
+        drawAllRegions();
+        return;
+      }
+      const { x: endX, y: endY } = getCanvasCoordinates(evt);
       const color = regionColors[(nextRegionId-1)%regionColors.length];
       let newRegion;
       if(currentTool==='rectangle'){
@@ -613,9 +658,20 @@
         const radius = Math.hypot(endX-startX,endY-startY);
         newRegion={id:nextRegionId,type:'circle',cx:startX,cy:startY,radius:radius,color:color,prompt:'',imageBase64:null};
       }
-      if((newRegion.type==='rectangle' && (newRegion.w<10||newRegion.h<10)) || (newRegion.type==='circle' && newRegion.radius<5)){ drawAllRegions(); return; }
+      if((newRegion.type==='rectangle' && (newRegion.w<10||newRegion.h<10)) || (newRegion.type==='circle' && newRegion.radius<5)){
+        drawAllRegions();
+        return;
+      }
       regions.push(newRegion); nextRegionId++; drawAllRegions(); updateRegionList();
-    });
+    }
+
+    if (canvas) {
+      canvas.addEventListener('pointerdown', beginDrawing);
+      canvas.addEventListener('pointermove', drawPreview);
+      canvas.addEventListener('pointerup', finishDrawing);
+      canvas.addEventListener('pointercancel', (evt) => finishDrawing(evt, true));
+      canvas.addEventListener('pointerleave', (evt) => finishDrawing(evt, true));
+    }
 
     function drawAllRegions(){
       // 검정 배경으로 채우기
