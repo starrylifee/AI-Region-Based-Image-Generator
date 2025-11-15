@@ -91,11 +91,14 @@
       const user = authManager.currentUser;
       const role = authManager.userRole;
       const normalizedRole = (role || '').toString().trim().toLowerCase();
-      const roleLabel = normalizedRole === 'teacher'
-        ? '교사'
-        : normalizedRole === 'student'
-          ? '학생'
-          : '역할 미지정';
+      const isStudent = normalizedRole === 'student' || Boolean(authManager.studentNumber || authManager.classCode);
+      const isTeacher = normalizedRole === 'teacher' || (!isStudent && !!user);
+      let roleLabel = '';
+      if (isTeacher) {
+        roleLabel = '교사';
+      } else if (isStudent) {
+        roleLabel = '학생';
+      }
       
       if (isTrialMode) {
         // 체험 모드 UI
@@ -123,20 +126,24 @@
       } else if (user) {
         // 일반 사용자 UI
         let roleDisplay = roleLabel;
-        if (normalizedRole === 'student' && authManager.studentNumber) {
+        if (isStudent && authManager.studentNumber) {
           roleDisplay += ` #${authManager.studentNumber}`;
         }
-        userInfo.textContent = `${user.displayName || user.email} (${roleDisplay})`;
+        const baseLabel = user.displayName || user.email;
+        userInfo.textContent = roleDisplay ? `${baseLabel} (${roleDisplay})` : baseLabel;
         userInfo.classList.remove('hidden');
         logoutBtn.classList.remove('hidden');
         
-        if (normalizedRole === 'teacher') {
+        if (isTeacher) {
           dashboardBtn.classList.remove('hidden');
           saveWorkBtn.classList.add('hidden');
-        } else if (normalizedRole === 'student') {
+          joinClassBtn.classList.add('hidden');
+        } else if (isStudent) {
           saveWorkBtn.classList.remove('hidden');
           if (!authManager.classCode) {
             joinClassBtn.classList.remove('hidden');
+          } else {
+            joinClassBtn.classList.add('hidden');
           }
         } else {
           // 역할 미지정: 버튼들을 숨김 처리

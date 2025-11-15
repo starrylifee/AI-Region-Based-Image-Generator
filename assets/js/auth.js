@@ -82,44 +82,6 @@ class AuthManager {
     }
   }
 
-  // 학생 회원가입
-  async signUpStudent(email, password, name, classCode) {
-    try {
-      // 반코드 유효성 검사
-      const classDoc = await db.collection('classes').doc(classCode).get();
-      if (!classDoc.exists) {
-        return { success: false, error: '유효하지 않은 반코드입니다.' };
-      }
-
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-      const user = userCredential.user;
-      
-      await user.updateProfile({ displayName: name });
-      
-      // Firestore에 사용자 정보 저장
-      await db.collection('users').doc(user.uid).set({
-        email: email,
-        name: name,
-        role: 'student',
-        classCode: classCode,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      
-      // 반에 학생 추가
-      await db.collection('classes').doc(classCode).update({
-        students: firebase.firestore.FieldValue.arrayUnion(user.uid)
-      });
-      
-      this.currentUser = user;
-      this.userRole = 'student';
-      this.classCode = classCode;
-      
-      return { success: true, user };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
   // 로그인
   async signIn(email, password) {
     try {
